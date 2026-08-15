@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="format-detection" content="telephone=no">
 <title>Debt Tracker</title>
 <style>
   :root{
@@ -366,12 +367,10 @@
 <div class="lock-screen" id="lockScreen">
   <div class="lock-card">
     <h1>🔒 Debt Tracker</h1>
-    <div class="sub" id="lockSub">Enter your password to continue</div>
-    <input type="password" id="lockPw" placeholder="Password" autocomplete="current-password">
-    <input type="password" id="lockPwConfirm" placeholder="Confirm password" style="display:none;">
-    <button id="lockBtn">Unlock</button>
+    <div class="sub" id="lockSub">Enter passkey to continue</div>
+    <input type="password" id="lockPw" placeholder="Passkey" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off">
+    <button id="lockBtn">Enter</button>
     <div class="lock-status" id="lockStatus"></div>
-    <div class="lock-forgot" id="lockForgot" style="display:none;">Forgot password? Tap to reset</div>
   </div>
 </div>
 <div class="wrap" id="mainApp" style="display:none;">
@@ -713,10 +712,14 @@ function renderGrouped(containerId, items, collapsed, removeFn, toggleFn){
 async function save(){
   document.getElementById('status').textContent = 'Saving…';
   try{
+    if(typeof window.storage === 'undefined'){
+      document.getElementById('status').textContent = "Storage unavailable — changes won't persist after reload";
+      return;
+    }
     const result = await window.storage.set('debt-tracker-state', JSON.stringify(state), false);
-    document.getElementById('status').textContent = result ? '' : 'Could not save';
+    document.getElementById('status').textContent = result ? '' : "Couldn't save — storage returned no result";
   }catch(e){
-    document.getElementById('status').textContent = 'Could not save';
+    document.getElementById('status').textContent = "Couldn't save (" + e.message + ')';
   }
 }
 
@@ -747,7 +750,7 @@ async function load(){
     }
   }catch(e){
     state = defaultFreshState();
-    await save();
+    document.getElementById('status').textContent = "Couldn't load your saved data (" + e.message + ") — showing sample data for now, nothing overwritten. Reload to try again.";
   }
   render();
 }
@@ -870,86 +873,28 @@ window.addEventListener('error', (e) => {
   if(statusEl) statusEl.textContent = 'Something went wrong — try reloading. (' + (e.message || 'error') + ')';
 });
 
-function simpleHash(str){
-  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-  for(let i = 0; i < str.length; i++){
-    const ch = str.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
-  }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16);
-}
+const APP_PASSKEY = '230321';
 
-let pwHash = null;
-
-async function initLock(keepStatus){
-  try{
-    const result = await window.storage.get('debt-tracker-pw-hash', false);
-    pwHash = (result && result.value) ? result.value : null;
-  }catch(e){
-    pwHash = null;
-  }
-  const sub = document.getElementById('lockSub');
-  const confirmEl = document.getElementById('lockPwConfirm');
-  const btn = document.getElementById('lockBtn');
-  const forgot = document.getElementById('lockForgot');
+function initLock(){
   document.getElementById('lockPw').value = '';
-  confirmEl.value = '';
-  if(!keepStatus) document.getElementById('lockStatus').textContent = '';
-  if(pwHash){
-    sub.textContent = 'Enter your password to continue';
-    confirmEl.style.display = 'none';
-    btn.textContent = 'Unlock';
-    forgot.style.display = 'block';
-  } else {
-    sub.textContent = 'Set a password to protect this tracker';
-    confirmEl.style.display = 'block';
-    btn.textContent = 'Set password';
-    forgot.style.display = 'none';
-  }
+  document.getElementById('lockStatus').textContent = '';
   document.getElementById('lockPw').focus();
 }
 
-async function handleLock(){
-  const pw = document.getElementById('lockPw').value;
+function handleLock(){
+  const pw = document.getElementById('lockPw').value.trim();
   const statusEl = document.getElementById('lockStatus');
-  if(!pw){ statusEl.textContent = 'Enter a password'; return; }
-  if(pwHash){
-    const h = simpleHash(pw);
-    if(h === pwHash){
-      unlockApp();
-    } else {
-      statusEl.textContent = 'Incorrect password';
-    }
+  if(!pw){ statusEl.textContent = 'Enter passkey'; return; }
+  if(pw === APP_PASSKEY){
+    unlockApp();
   } else {
-    const confirmPw = document.getElementById('lockPwConfirm').value;
-    if(pw.length < 4){ statusEl.textContent = 'Use at least 4 characters'; return; }
-    if(pw !== confirmPw){ statusEl.textContent = 'Passwords do not match'; return; }
-    const h = simpleHash(pw);
-    pwHash = h;
-    try{
-      if(typeof window.storage === 'undefined'){
-        statusEl.textContent = '';
-        unlockApp();
-        return;
-      }
-      const result = await window.storage.set('debt-tracker-pw-hash', h, false);
-      if(!result){
-        statusEl.textContent = "Password set, but couldn't save it for next time";
-      }
-      unlockApp();
-    }catch(e){
-      statusEl.textContent = "Password set, but couldn't save it for next time (" + e.message + ')';
-      unlockApp();
-    }
+    statusEl.textContent = 'Incorrect passkey';
+    document.getElementById('lockPw').value = '';
+    document.getElementById('lockPw').focus();
   }
 }
 
 function unlockApp(){
-  document.getElementById('lockPw').blur();
-  document.getElementById('lockPwConfirm').blur();
   document.activeElement && document.activeElement.blur && document.activeElement.blur();
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
@@ -967,19 +912,8 @@ function logout(){
 document.getElementById('logoutBtn').addEventListener('click', logout);
 
 document.getElementById('lockBtn').addEventListener('click', handleLock);
-['lockPw','lockPwConfirm'].forEach(id => {
-  document.getElementById(id).addEventListener('keydown', e => {
-    if(e.key === 'Enter'){ e.preventDefault(); handleLock(); }
-  });
-});
-document.getElementById('lockForgot').addEventListener('click', async () => {
-  const statusEl = document.getElementById('lockStatus');
-  try{
-    await window.storage.set('debt-tracker-pw-hash', '', false);
-  }catch(e){}
-  pwHash = null;
-  statusEl.textContent = 'Password reset — set a new one below';
-  initLock(true);
+document.getElementById('lockPw').addEventListener('keydown', e => {
+  if(e.key === 'Enter'){ e.preventDefault(); handleLock(); }
 });
 
 initLock();
