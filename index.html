@@ -70,6 +70,16 @@
     font-weight:600;
     cursor:pointer;
   }
+  .storage-banner{
+    background:rgba(255,107,107,0.12);
+    border:1px solid rgba(255,107,107,0.35);
+    color:var(--ink);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:12px;
+    line-height:1.4;
+    margin-bottom:16px;
+  }
 
   .person-tabs{
     display:flex;
@@ -396,6 +406,10 @@
       <div class="sub">Hutang — items owed vs. monthly payments.</div>
     </div>
     <button id="logoutBtn" class="logout-btn">Logout</button>
+  </div>
+
+  <div class="storage-banner" id="storageBanner" style="display:none;">
+    ⚠️ Open this file directly in Safari (not inside the Claude app) — tap the file, or use "Add to Home Screen" — for saving to work reliably.
   </div>
 
   <div class="person-tabs" id="personTabs"></div>
@@ -730,25 +744,39 @@ function renderGrouped(containerId, items, collapsed, removeFn, toggleFn){
   }
 }
 
-async function save(){
+const STORE_KEY = 'debt-tracker-data-v1';
+
+function showStorageBanner(){
+  const el = document.getElementById('storageBanner');
+  if(el) el.style.display = 'block';
+}
+
+function save(){
   document.getElementById('status').textContent = 'Saving…';
   try{
-    if(typeof window.storage === 'undefined'){
-      document.getElementById('status').textContent = "Storage unavailable — changes won't persist after reload";
-      return;
-    }
-    const result = await window.storage.set('debt-tracker-state', JSON.stringify(state), false);
-    document.getElementById('status').textContent = result ? '' : "Couldn't save — storage returned no result";
+    localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    document.getElementById('status').textContent = '';
   }catch(e){
+    showStorageBanner();
     document.getElementById('status').textContent = "Couldn't save (" + e.message + ')';
   }
 }
 
-async function load(){
+function loadFromLocalStorage(){
   try{
-    const result = await window.storage.get('debt-tracker-state', false);
-    if(result && result.value){
-      const parsed = JSON.parse(result.value);
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){
+    console.error(e);
+    showStorageBanner();
+  }
+  return null;
+}
+
+function load(){
+  try{
+    const parsed = loadFromLocalStorage();
+    if(parsed){
       if(parsed.people){
         state = {
           people: parsed.people.map(p => normalizePerson(p, false)),
@@ -764,14 +792,13 @@ async function load(){
       } else {
         state = defaultFreshState();
       }
-      await save();
     } else {
       state = defaultFreshState();
-      await save();
+      save();
     }
   }catch(e){
     state = defaultFreshState();
-    document.getElementById('status').textContent = "Couldn't load your saved data (" + e.message + ") — showing sample data for now, nothing overwritten. Reload to try again.";
+    document.getElementById('status').textContent = "Couldn't load your saved data (" + e.message + ') — showing sample data for now, nothing overwritten.';
   }
   appLoaded = true;
   render();
@@ -980,7 +1007,8 @@ document.getElementById('importFile').addEventListener('change', (e) => {
       }
       appLoaded = true;
       render();
-      save().then(() => { statusEl.textContent = 'Backup imported'; });
+      save();
+      statusEl.textContent = 'Backup imported';
     }catch(err){
       statusEl.textContent = "Couldn't import file (" + err.message + ')';
     }
