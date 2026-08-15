@@ -54,6 +54,22 @@
     white-space:nowrap;
     margin-top:2px;
   }
+  .backup-row{
+    display:flex;
+    gap:8px;
+    margin-bottom:16px;
+  }
+  .backup-btn{
+    flex:1;
+    border:1px dashed var(--line);
+    background:transparent;
+    color:var(--muted);
+    border-radius:10px;
+    padding:9px 10px;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+  }
 
   .person-tabs{
     display:flex;
@@ -383,6 +399,11 @@
   </div>
 
   <div class="person-tabs" id="personTabs"></div>
+  <div class="backup-row">
+    <button id="exportBtn" class="backup-btn">⬇ Export backup</button>
+    <button id="importBtn" class="backup-btn">⬆ Import backup</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none;">
+  </div>
   <div class="add-person-form" id="addPersonForm">
     <input type="text" id="personName" placeholder="Person's name" autocomplete="off">
     <button id="savePersonBtn">Add</button>
@@ -917,6 +938,56 @@ function logout(){
   initLock();
 }
 document.getElementById('logoutBtn').addEventListener('click', logout);
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const dataStr = JSON.stringify(state, null, 2);
+  const blob = new Blob([dataStr], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'debt-tracker-backup-' + new Date().toISOString().slice(0,10) + '.json';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  document.getElementById('status').textContent = 'Backup downloaded';
+});
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFile').click();
+});
+document.getElementById('importFile').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  const statusEl = document.getElementById('status');
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt) => {
+    try{
+      const parsed = JSON.parse(evt.target.result);
+      if(parsed.people){
+        state = {
+          people: parsed.people.map(p => normalizePerson(p, false)),
+          activePersonId: parsed.activePersonId
+        };
+        if(!state.people.find(p => p.id === state.activePersonId) && state.people.length){
+          state.activePersonId = state.people[0].id;
+        }
+      } else if(parsed.debts){
+        const person = normalizePerson({name:'Me', debts: parsed.debts, payments: parsed.payments || []}, false);
+        state = { people: [person], activePersonId: person.id };
+      } else {
+        throw new Error('unrecognized file format');
+      }
+      appLoaded = true;
+      render();
+      save().then(() => { statusEl.textContent = 'Backup imported'; });
+    }catch(err){
+      statusEl.textContent = "Couldn't import file (" + err.message + ')';
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
 
 document.getElementById('lockBtn').addEventListener('click', handleLock);
 document.getElementById('lockPw').addEventListener('keydown', e => {
