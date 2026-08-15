@@ -34,6 +34,25 @@
     margin:0 0 4px;
   }
   .sub{color:var(--muted);font-size:13px;margin-bottom:16px;}
+  .header-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:8px;
+  }
+  .logout-btn{
+    flex-shrink:0;
+    border:1px solid var(--line);
+    background:var(--card);
+    color:var(--muted);
+    border-radius:20px;
+    padding:6px 12px;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    white-space:nowrap;
+    margin-top:2px;
+  }
 
   .person-tabs{
     display:flex;
@@ -356,8 +375,13 @@
   </div>
 </div>
 <div class="wrap" id="mainApp" style="display:none;">
-  <h1>Debt Tracker</h1>
-  <div class="sub">Hutang — items owed vs. monthly payments.</div>
+  <div class="header-row">
+    <div>
+      <h1>Debt Tracker</h1>
+      <div class="sub">Hutang — items owed vs. monthly payments.</div>
+    </div>
+    <button id="logoutBtn" class="logout-btn">Logout</button>
+  </div>
 
   <div class="person-tabs" id="personTabs"></div>
   <div class="add-person-form" id="addPersonForm">
@@ -924,10 +948,23 @@ async function handleLock(){
 }
 
 function unlockApp(){
+  document.getElementById('lockPw').blur();
+  document.getElementById('lockPwConfirm').blur();
+  document.activeElement && document.activeElement.blur && document.activeElement.blur();
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
+  window.scrollTo(0, 0);
   load();
 }
+
+function logout(){
+  document.activeElement && document.activeElement.blur && document.activeElement.blur();
+  document.getElementById('mainApp').style.display = 'none';
+  document.getElementById('lockScreen').style.display = 'flex';
+  window.scrollTo(0, 0);
+  initLock();
+}
+document.getElementById('logoutBtn').addEventListener('click', logout);
 
 document.getElementById('lockBtn').addEventListener('click', handleLock);
 ['lockPw','lockPwConfirm'].forEach(id => {
