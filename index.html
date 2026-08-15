@@ -752,6 +752,7 @@ async function load(){
     state = defaultFreshState();
     document.getElementById('status').textContent = "Couldn't load your saved data (" + e.message + ") — showing sample data for now, nothing overwritten. Reload to try again.";
   }
+  appLoaded = true;
   render();
 }
 
@@ -894,12 +895,18 @@ function handleLock(){
   }
 }
 
+let appLoaded = false;
+
 function unlockApp(){
   document.activeElement && document.activeElement.blur && document.activeElement.blur();
   document.getElementById('lockScreen').style.display = 'none';
   document.getElementById('mainApp').style.display = 'block';
   window.scrollTo(0, 0);
-  load();
+  if(appLoaded){
+    render();
+  } else {
+    load();
+  }
 }
 
 function logout(){
